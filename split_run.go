@@ -8,22 +8,21 @@ func (s *Session) IngestSplit(data []byte) error {
 	if s.closed {
 		return ErrClosed
 	}
+	if s.hasher == nil {
+		return ErrNoHasher
+	}
 	cp := clone.Bytes(data)
-	// dirty: register before hasher use
+	// Hash first; only register a complete chunk on success so the
+	// failure path can never leave a half-formed block visible.
 	info := ChunkInfo{
 		Offset: 0,
 		Length: len(cp),
-		Hash:   0,
+		Hash:   s.hasher.Sum32(cp),
 		FP:     Fingerprint(cp),
 		Data:   cp,
 	}
 	s.entries = append(s.entries, info)
 	s.byFP[info.FP] = len(s.entries) - 1
-	h := s.hasher.Sum32(cp)
-	if s.hasher == nil {
-		return ErrNoHasher
-	}
-	s.entries[len(s.entries)-1].Hash = h
 	s.win = NewWindow(cp, s.winSize)
 	return nil
 }
